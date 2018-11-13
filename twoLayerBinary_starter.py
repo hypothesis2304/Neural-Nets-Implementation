@@ -1,10 +1,3 @@
-'''
-This file implements a two layer neural network for a binary classifier
-
-Hemanth Venkateswara
-hkdv1@asu.edu
-Oct 2018
-'''
 import numpy as np
 from load_mnist import mnist
 import matplotlib.pyplot as plt
