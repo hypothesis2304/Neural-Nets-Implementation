@@ -1,10 +1,3 @@
-'''
-This file implements a multi layer neural network for a multiclass classifier
-
-Hemanth Venkateswara
-hkdv1@asu.edu
-Oct 2018
-'''
 import numpy as np
 from load_mnist import mnist
 import matplotlib.pyplot as plt
@@ -92,6 +85,18 @@ def softmax_cross_entropy_loss(Z, Y=np.array([])):
         loss - cost of prediction
     '''
     ### CODE HERE 
+
+    cache = {}
+    Y = Y.astype('int')
+    temp = np.exp(Z - np.max(Z, axis=0, keepdims=True))
+    A = temp/np.sum(temp, axis=0, keepdims=True)  
+    
+    noSamples = Z.shape[1]
+
+    loss = (-np.sum(np.log(A[Y, np.arange(noSamples)])))/noSamples
+
+    cache['A'] = A
+
     return A, cache, loss
 
 def softmax_cross_entropy_loss_der(Y, cache):
@@ -106,6 +111,14 @@ def softmax_cross_entropy_loss_der(Y, cache):
         dZ - numpy.ndarray (n, m) derivative for the previous layer
     '''
     ### CODE HERE 
+
+    Y = Y.astype('int')
+    noSamples = Y.shape[1]
+    activates = cache['A']
+
+    activates[Y, np.arange(noSamples)] -= 1
+
+    dZ = activates/noSamples
 
     return dZ
 
@@ -123,8 +136,8 @@ def initialize_multilayer_weights(net_dims):
     numLayers = len(net_dims)
     parameters = {}
     for l in range(numLayers-1):
-        parameters["W"+str(l+1)] = #CODE HERE
-        parameters["b"+str(l+1)] = #CODE HERE
+        parameters["W"+str(l+1)] = np.random.random((net_dims[l], net_dims[l+1]))*(np.sqrt(2.0/(net_dims[l]*net_dims[l+1])))
+        parameters["b"+str(l+1)] = np.zeros((net_dims[l+1], 1))
     return parameters
 
 def linear_forward(A, W, b):
@@ -141,9 +154,15 @@ def linear_forward(A, W, b):
         Z = WA + b, where Z is the numpy.ndarray (n_out, m) dimensions
         cache - a dictionary containing the inputs A
     '''
-    ### CODE HERE
+
+    Wx = np.matmul(W.T,A) 
+    Z =  (Wx+ b)
+
     cache = {}
     cache["A"] = A
+    cache["W"] = W
+    cache["b"] = b
+
     return Z, cache
 
 def layer_forward(A_prev, W, b, activation):
@@ -185,6 +204,7 @@ def multi_layer_forward(X, parameters):
             where c is number of categories and m is number of samples in the batch
         caches - a dictionary of associated caches of parameters and network inputs
     '''
+
     L = len(parameters)//2  
     A = X
     caches = []
@@ -194,6 +214,7 @@ def multi_layer_forward(X, parameters):
 
     AL, cache = layer_forward(A, parameters["W"+str(L)], parameters["b"+str(L)], "linear")
     caches.append(cache)
+    
     return AL, caches
 
 def linear_backward(dZ, cache, W, b):
@@ -213,8 +234,14 @@ def linear_backward(dZ, cache, W, b):
         dW - numpy.ndarray (n,p) the gradient of W 
         db - numpy.ndarray (n, 1) the gradient of b
     '''
+    
     A_prev = cache["A"]
-    ## CODE HERE
+    
+    dA_prev = np.matmul(W, dZ)
+    dW = np.matmul(A_prev, dZ.T)
+    db = np.sum(dZ.T, axis=0)
+
+
     return dA_prev, dW, db
 
 def layer_backward(dA, cache, W, b, activation):
@@ -288,6 +315,12 @@ def classify(X, parameters):
     # Forward propagate X using multi_layer_forward
     # Get predictions using softmax_cross_entropy_loss
     # Estimate the class labels using predictions
+
+    ALast, cache = multi_layer_forward(X, parameters)
+    act, dummyCache, loss = softmax_cross_entropy_loss(ALast)
+
+    Ypred = np.argmax(act, axis=1)
+
     return Ypred
 
 def update_parameters(parameters, gradients, epoch, learning_rate, decay_rate=0.0):
@@ -306,6 +339,13 @@ def update_parameters(parameters, gradients, epoch, learning_rate, decay_rate=0.
     alpha = learning_rate*(1/(1+decay_rate*epoch))
     L = len(parameters)//2
     ### CODE HERE 
+
+    for i in parameters.keys():
+        if i[0] == 'b':
+            parameters[i] -= learning_rate * (np.expand_dims(gradients["d" + i],axis=1))
+        else:
+            parameters[i] -= learning_rate * gradients["d" + i]
+
     return parameters, alpha
 
 def multi_layer_network(X, Y, net_dims, num_iterations=500, learning_rate=0.2, decay_rate=0.01):
@@ -325,6 +365,7 @@ def multi_layer_network(X, Y, net_dims, num_iterations=500, learning_rate=0.2, d
     '''
     parameters = initialize_multilayer_weights(net_dims)
     A0 = X
+    Y.astype('int')
     costs = []
     for ii in range(num_iterations):
         ### CODE HERE
@@ -332,11 +373,21 @@ def multi_layer_network(X, Y, net_dims, num_iterations=500, learning_rate=0.2, d
         ## call to multi_layer_forward to get activations
         ## call to softmax cross entropy loss
 
+        aLast, cacheLast = multi_layer_forward(X, parameters)
+        final, caches, cost = softmax_cross_entropy_loss(aLast, Y)
+
+        # dfinal = softmax_cross_entropy_loss_der(Y, caches)
+
         # Backward Prop
         ## call to softmax cross entropy loss der
         ## call to multi_layer_backward to get gradients
         ## call to update the parameters
         
+        dZ = softmax_cross_entropy_loss_der(final, caches)
+        grads   = multi_layer_backward(dZ, cacheLast, parameters)
+        params, alpha = update_parameters(parameters, grads, ii, learning_rate, decay_rate)
+
+
         if ii % 10 == 0:
             costs.append(cost)
         if ii % 10 == 0:
@@ -381,8 +432,8 @@ def main():
     train_Pred = classify(train_data, parameters)
     test_Pred = classify(test_data, parameters)
 
-    trAcc = None
-    teAcc = None
+    trAcc = (np.sum(train_Pred == train_label)/train_data.shape[1])*100
+    teAcc = (np.sum(test_Pred == test_label)/test_data.shape[1])*100
     print("Accuracy for training set is {0:0.3f} %".format(trAcc))
     print("Accuracy for testing set is {0:0.3f} %".format(teAcc))
     

@@ -321,9 +321,9 @@ def main():
     # binary classification for digits 1 and 7
     digit_range = [1,7]
     train_data, train_label, test_data, test_label = \
-            mnist(noTrSamples=1200,noTsSamples=200,\
+            mnist(noTrSamples=2400,noTsSamples=1000,\
             digit_range=digit_range,\
-            noTrPerClass=600, noTsPerClass=100)
+            noTrPerClass=1200, noTsPerClass=500)
     
     #convert to binary labels
     train_label[train_label==digit_range[0]] = 0
